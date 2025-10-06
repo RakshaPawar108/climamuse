@@ -1,13 +1,15 @@
 import { Card, CardHeader } from "./ui/Card.jsx";
-export default function ChartCard({ title }) {
+import Sparkline from "./Sparkline.jsx";
+
+export default function ChartCard({ title, rows = [] }) {
   return (
     <Card>
       <CardHeader title={title} />
-      <div className="h-40 w-full rounded bg-slate-200/70 grid place-items-center">
-        <span className="text-text-muted text-sm">Chart placeholder</span>
+      <div className="rounded bg-white/50 border border-border">
+        <Sparkline rows={rows} />{" "}
       </div>
       <div className="mt-2 text-xs text-text-muted">
-        Source: NASA Hydrology Data Rods
+        Source: NASA POWER (hourly)
       </div>
     </Card>
   );
