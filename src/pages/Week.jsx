@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Card } from "../components/ui/Card.jsx";
-import { useLocation } from "../hooks/useLocation.js";
+import { useSettings } from "../context/SettingsContext.jsx";
 
-/* -------------------- icons -------------------- */
 function UmbrellaIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5">
@@ -21,12 +20,12 @@ function UmbrellaIcon() {
   );
 }
 
-/* -------------------- helpers -------------------- */
 const clean = (v, def = null) => {
   const n = Number(v);
   if (!Number.isFinite(n)) return def;
   return n <= -900 ? def : n;
 };
+const toF = (c) => (c == null ? null : (c * 9) / 5 + 32);
 function yyyymmdd(d) {
   return d.toISOString().slice(0, 10).replace(/-/g, "");
 }
@@ -36,22 +35,12 @@ function lastNDaysRange(n = 7, now = new Date()) {
   const start = yyyymmdd(s);
   return { start, end };
 }
-function score({ rain, temp }) {
-  const rainPenalty = (rain ?? 0) * 1000; // rain dominates
-  const tempPenalty = Math.abs((temp ?? 24) - 24);
+function score({ rain, tempC }) {
+  const rainPenalty = (rain ?? 0) * 1000;
+  const tempPenalty = Math.abs((tempC ?? 24) - 24); // score in °C space
   return rainPenalty + tempPenalty;
 }
-function summarizeWeek(days) {
-  const valid = days.filter((d) => d.temp != null);
-  if (!valid.length) return "No week summary available.";
-  const avgT = valid.reduce((s, d) => s + d.temp, 0) / valid.length;
-  const wetDays = days.filter((d) => (d.rain ?? 0) >= 5).length;
-  return `Avg ~${Math.round(avgT)}°C, ${wetDays} wet day${
-    wetDays === 1 ? "" : "s"
-  } expected.`;
-}
 
-/* -------------------- POWER daily -------------------- */
 async function fetchPowerDaily({ lat, lon, start, end }) {
   const base = "https://power.larc.nasa.gov/api/temporal/daily/point";
   const qs = new URLSearchParams({
@@ -68,11 +57,9 @@ async function fetchPowerDaily({ lat, lon, start, end }) {
   return r.json();
 }
 
-/* -------------------- Component -------------------- */
 export default function Week() {
-  const { coords } = useLocation();
+  const { coords, units } = useSettings();
   const [days, setDays] = useState([]);
-  const [summary, setSummary] = useState("");
   const [err, setErr] = useState("");
 
   useEffect(() => {
@@ -86,7 +73,6 @@ export default function Week() {
           start,
           end,
         });
-
         const p = j?.properties?.parameter || {};
         const t = p.T2M || {};
         const r = p.PRECTOTCORR || {};
@@ -101,24 +87,35 @@ export default function Week() {
           return dt.toLocaleDateString(undefined, { weekday: "short" });
         };
 
-        const rows = keys.map((k) => ({
-          key: k,
-          temp: clean(t[k]),
-          rain: clean(r[k], 0),
-          label: toLabel(k),
-          md: `${k.slice(4, 6)}/${k.slice(6, 8)}`,
-        }));
+        const rows = keys.map((k) => {
+          const tempC = clean(t[k]);
+          const rain = clean(r[k], 0);
+          return {
+            key: k,
+            tempC,
+            tempShow:
+              units === "F"
+                ? tempC != null
+                  ? Math.round(toF(tempC))
+                  : null
+                : tempC != null
+                ? Math.round(tempC)
+                : null,
+            rain,
+            label: toLabel(k),
+            md: `${k.slice(4, 6)}/${k.slice(6, 8)}`,
+          };
+        });
 
         setDays(rows);
-        setSummary(summarizeWeek(rows));
       } catch (e) {
         setErr(e.message || String(e));
       }
     })();
-  }, [coords.lat, coords.lon]);
+  }, [coords.lat, coords.lon, units]); // refetch when units change so “Best day” description stays consistent
 
   const best = useMemo(() => {
-    const have = days.filter((d) => d.temp != null);
+    const have = days.filter((d) => d.tempC != null);
     if (!have.length) return null;
     return [...have].sort((a, b) => score(a) - score(b))[0];
   }, [days]);
@@ -128,12 +125,6 @@ export default function Week() {
       <h2 className="text-2xl font-semibold text-slate-800 flex items-center gap-2">
         <UmbrellaIcon /> 7-Day (NASA POWER)
       </h2>
-
-      {summary && (
-        <Card className="card-tint-amber">
-          <div className="text-sm text-amber-900">{summary}</div>
-        </Card>
-      )}
 
       {best && (
         <Card className="card-tint-sky">
@@ -146,7 +137,7 @@ export default function Week() {
             </div>
             <div className="text-sm text-slate-600">
               {(best.rain ?? 0).toFixed(1)} mm rain ·{" "}
-              {best.temp != null ? Math.round(best.temp) : "—"}°C
+              {best.tempShow != null ? best.tempShow : "—"}°{units}
             </div>
           </div>
         </Card>
@@ -158,15 +149,14 @@ export default function Week() {
         </div>
       )}
 
-      {/* Weekly strip */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
         {days.map((d) => {
           const isBest = best && d.key === best.key;
-          const hot = d.temp != null && d.temp >= 30;
+          const hotC = d.tempC != null && d.tempC >= 30;
           const wet = (d.rain ?? 0) >= 5;
           const tone = wet
             ? "card-tint-sky"
-            : hot
+            : hotC
             ? "card-tint-amber"
             : "bg-white/80 border border-slate-200";
           return (
@@ -181,7 +171,7 @@ export default function Week() {
                 <span className="text-xs text-slate-500">{d.md}</span>
               </div>
               <p className="mt-1 text-2xl font-semibold">
-                {d.temp != null ? Math.round(d.temp) : "—"}°C
+                {d.tempShow != null ? d.tempShow : "—"}°{units}
               </p>
               <p className="text-sm text-slate-500">
                 {(d.rain ?? 0).toFixed(1)} mm

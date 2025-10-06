@@ -1,4 +1,3 @@
-/** Simple SVG sparkline with tone + -999 sanitization */
 export default function Sparkline({
   rows = [],
   width = 560,
@@ -12,11 +11,15 @@ export default function Sparkline({
     return n;
   };
 
-  const points = rows
+  const pts = rows
     .map((r, i) => ({ i, y: clean(r.value) }))
     .filter((p) => p.y !== null);
 
-  if (points.length < 2) {
+  const pad = 24,
+    W = width,
+    H = height;
+
+  if (pts.length === 0) {
     return (
       <div className="h-40 w-full rounded grid place-items-center">
         <span className="text-slate-500 text-sm">No data</span>
@@ -24,24 +27,20 @@ export default function Sparkline({
     );
   }
 
-  const pad = 24,
-    W = width,
-    H = height;
-  const xMin = points[0].i,
-    xMax = points[points.length - 1].i;
-  const yMin = Math.min(...points.map((p) => p.y));
-  const yMax = Math.max(...points.map((p) => p.y));
-
+  const xMin = pts[0].i,
+    xMax = pts[pts.length - 1].i;
+  const yMin = Math.min(...pts.map((p) => p.y));
+  const yMax = Math.max(...pts.map((p) => p.y));
   const sx = (i) =>
     pad + ((i - xMin) * (W - 2 * pad)) / Math.max(1, xMax - xMin);
   const sy = (v) =>
     H - pad - ((v - yMin) * (H - 2 * pad)) / Math.max(1e-6, yMax - yMin);
 
-  const path = points
+  const path = pts
     .map((p, idx) => `${idx === 0 ? "M" : "L"}${sx(p.i)},${sy(p.y)}`)
     .join(" ");
-  const area = `${path} L${sx(points[points.length - 1].i)},${H - pad} L${sx(
-    points[0].i
+  const area = `${path} L${sx(pts[pts.length - 1].i)},${H - pad} L${sx(
+    pts[0].i
   )},${H - pad} Z`;
 
   const line =
@@ -57,8 +56,12 @@ export default function Sparkline({
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-40">
       <rect x="0" y="0" width={W} height={H} fill="transparent" />
-      <path d={area} fill={fill} />
-      <path d={path} fill="none" stroke={line} strokeWidth="2" />
+      {pts.length >= 2 ? <path d={area} fill={fill} /> : null}
+      {pts.length >= 2 ? (
+        <path d={path} fill="none" stroke={line} strokeWidth="2" />
+      ) : (
+        <circle cx={sx(pts[0].i)} cy={sy(pts[0].y)} r="3" fill={line} />
+      )}
     </svg>
   );
 }

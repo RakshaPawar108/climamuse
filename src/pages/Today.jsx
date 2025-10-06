@@ -3,16 +3,15 @@ import HeroAnswer from "../components/HeroAnswer.jsx";
 import ConditionCard from "../components/ConditionCard.jsx";
 import ChartCard from "../components/ChartCard.jsx";
 import TipsCard from "../components/TipsCard.jsx";
-import { useLocation } from "../hooks/useLocation.js";
+import ControlsBar from "../components/ControlsBar.jsx";
+import { useSettings } from "../context/SettingsContext.jsx";
 
-/* -------------------- helpers: cleaning + language -------------------- */
-
-// POWER uses -999 as "missing"
 const clean = (v) => {
   const n = Number(v);
   if (!Number.isFinite(n)) return null;
   return n <= -900 ? null : n;
 };
+const toF = (c) => (c == null ? null : (c * 9) / 5 + 32);
 
 function rainRiskFromAvgMmPerHr(avg) {
   if (avg == null) return "Unknown";
@@ -37,8 +36,8 @@ function windLabel(ms) {
   return "Calm";
 }
 function makeHero({ rainRisk, tempC, windMs }) {
-  const heat = heatLevelFromTempC(tempC);
-  const wind = windLabel(windMs);
+  const heat = heatLevelFromTempC(tempC),
+    wind = windLabel(windMs);
   if (rainRisk === "High")
     return "Rain likely in the next few hours — plan for cover or pick an indoor slot.";
   if (rainRisk === "Moderate")
@@ -49,10 +48,10 @@ function makeHero({ rainRisk, tempC, windMs }) {
     return "Low rain risk — strong winds though; secure light items.";
   return "Low rain risk — good window for outdoor plans.";
 }
-function makeBadges({ rainRisk, hoursCount, latestTemp, latestWind }) {
+function makeBadges({ rainRisk, hoursCount, latestTemp, latestWind, units }) {
   const parts = [`Rain: ${rainRisk}`];
   if (hoursCount) parts.push(`${hoursCount}h data`);
-  if (latestTemp != null) parts.push(`${Math.round(latestTemp)}°C now`);
+  if (latestTemp != null) parts.push(`${Math.round(latestTemp)}°${units} now`);
   if (latestWind != null) parts.push(`${Math.round(latestWind)} m/s wind`);
   return parts;
 }
@@ -69,42 +68,9 @@ function makeTip({ rainRisk, tempC, windMs }) {
   return "Looks good — recheck an hour before in case conditions shift.";
 }
 
-/* -------------------- NASA POWER fetch + shape -------------------- */
-
-const DropIcon = (
-  <svg viewBox="0 0 24 24" fill="none">
-    <path
-      d="M12 3c4 5 6 8 6 11a6 6 0 1 1-12 0c0-3 2-6 6-11z"
-      stroke="currentColor"
-      strokeWidth="1.8"
-    />
-  </svg>
-);
-const ThermIcon = (
-  <svg viewBox="0 0 24 24" fill="none">
-    <path
-      d="M10 5a2 2 0 1 1 4 0v7a5 5 0 1 1-4 0V5z"
-      stroke="currentColor"
-      strokeWidth="1.8"
-    />
-    <circle cx="12" cy="17" r="2" fill="currentColor" />
-  </svg>
-);
-const WindIcon = (
-  <svg viewBox="0 0 24 24" fill="none">
-    <path
-      d="M3 8h11a3 3 0 1 0-3-3M3 12h14a3 3 0 1 1-3 3M3 16h7"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-    />
-  </svg>
-);
-
 function yyyymmdd(d) {
   return d.toISOString().slice(0, 10).replace(/-/g, "");
 }
-
 async function fetchPowerHourly({ lat, lon, start, end }) {
   const base = "https://power.larc.nasa.gov/api/temporal/hourly/point";
   const qs = new URLSearchParams({
@@ -115,12 +81,12 @@ async function fetchPowerHourly({ lat, lon, start, end }) {
     end,
     community: "RE",
     format: "JSON",
+    "time-standard": "UTC",
   }).toString();
   const r = await fetch(`${base}?${qs}`);
   if (!r.ok) throw new Error(`POWER ${r.status}`);
   return r.json();
 }
-
 function flatten(powerJson) {
   const p = powerJson?.properties?.parameter || {};
   const dates = Object.keys(p.T2M || {}).sort();
@@ -145,41 +111,62 @@ function flatten(powerJson) {
   return out;
 }
 
-/* -------------------- Component -------------------- */
-
 export default function Today() {
-  const { coords } = useLocation();
+  const { coords, units } = useSettings();
   const [temp, setTemp] = useState([]);
   const [precip, setPrecip] = useState([]);
   const [wind, setWind] = useState([]);
   const [err, setErr] = useState("");
+  const [loading, setLoading] = useState(false);
 
+  // Refetch when coords change (from presets/manual)
   useEffect(() => {
     (async () => {
       setErr("");
+      setLoading(true);
       try {
-        // Last 48h → avoids “empty today” edge cases for some coords/timezones
+        // 120h, fallback to 14 days if sparse
         const now = new Date();
-        const start = yyyymmdd(new Date(now.getTime() - 48 * 3600 * 1000));
         const end = yyyymmdd(now);
-        const json = await fetchPowerHourly({
+        const start120 = yyyymmdd(new Date(now.getTime() - 120 * 3600 * 1000));
+        let j = await fetchPowerHourly({
           lat: coords.lat,
           lon: coords.lon,
-          start,
+          start: start120,
           end,
         });
-        const { temp, precip, wind } = flatten(json);
-        setTemp(temp);
-        setPrecip(precip);
-        setWind(wind);
+        let shaped = flatten(j);
+        const count = Math.max(
+          shaped.temp.length,
+          shaped.precip.length,
+          shaped.wind.length
+        );
+        if (count < 6) {
+          const start14d = yyyymmdd(
+            new Date(now.getTime() - 14 * 24 * 3600 * 1000)
+          );
+          j = await fetchPowerHourly({
+            lat: coords.lat,
+            lon: coords.lon,
+            start: start14d,
+            end,
+          });
+          shaped = flatten(j);
+        }
+        setTemp(shaped.temp);
+        setPrecip(shaped.precip);
+        setWind(shaped.wind);
       } catch (e) {
         setErr(e.message || String(e));
+      } finally {
+        setLoading(false);
       }
     })();
   }, [coords.lat, coords.lon]);
 
   const latest = (rows) =>
     rows.length ? Number(rows[rows.length - 1].value) : null;
+
   const rainAvg3h = useMemo(() => {
     const last3 = precip.slice(-3).map((p) => Number(p.value) || 0);
     return last3.length
@@ -189,21 +176,41 @@ export default function Today() {
   }, [precip]);
 
   const rainRisk = rainRiskFromAvgMmPerHr(rainAvg3h);
-  const latestTemp = latest(temp);
+  const latestTempC = latest(temp);
   const latestWind = latest(wind);
-  const hero = makeHero({ rainRisk, tempC: latestTemp, windMs: latestWind });
+
+  const tempDisplayLatest =
+    units === "F"
+      ? latestTempC != null
+        ? Math.round(toF(latestTempC))
+        : null
+      : latestTempC != null
+      ? Math.round(latestTempC)
+      : null;
+
+  const tempRowsForChart = useMemo(
+    () =>
+      temp
+        .map((r) => ({ ...r, value: units === "F" ? toF(r.value) : r.value }))
+        .filter((r) => r.value != null),
+    [temp, units]
+  );
+
+  const hero = makeHero({ rainRisk, tempC: latestTempC, windMs: latestWind });
   const badges = makeBadges({
     rainRisk,
     hoursCount: Math.max(temp.length, precip.length, wind.length),
-    latestTemp,
+    latestTemp: units === "F" ? toF(latestTempC) : latestTempC,
     latestWind,
+    units,
   });
-  const tip = makeTip({ rainRisk, tempC: latestTemp, windMs: latestWind });
+  const tip = makeTip({ rainRisk, tempC: latestTempC, windMs: latestWind });
   const updated = `Updated ${new Date().toLocaleTimeString()} • NASA POWER`;
 
   return (
     <div className="grid grid-cols-12 gap-6 px-6 py-6 max-w-[1200px] mx-auto">
       <HeroAnswer sentence={hero} badges={badges} timestamp={updated} />
+      <ControlsBar />
 
       {err && (
         <div className="col-span-12 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -211,6 +218,7 @@ export default function Today() {
         </div>
       )}
 
+      {/* Condition cards */}
       <div className="col-span-12 grid grid-cols-12 gap-6">
         <div className="col-span-12 md:col-span-3">
           <ConditionCard
@@ -218,16 +226,33 @@ export default function Today() {
             value={rainAvg3h}
             unit="mm/hr"
             subtitle="Mean of last 3 hrs"
-            icon={DropIcon}
+            icon={
+              <svg viewBox="0 0 24 24" fill="none">
+                <path
+                  d="M12 3c4 5 6 8 6 11a6 6 0 1 1-12 0c0-3 2-6 6-11z"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                />
+              </svg>
+            }
           />
         </div>
         <div className="col-span-12 md:col-span-3">
           <ConditionCard
             title="Temp (latest)"
-            value={latestTemp != null ? Math.round(latestTemp) : "—"}
-            unit="°C"
+            value={tempDisplayLatest != null ? tempDisplayLatest : "—"}
+            unit={`°${units}`}
             subtitle="Closest recent hour"
-            icon={ThermIcon}
+            icon={
+              <svg viewBox="0 0 24 24" fill="none">
+                <path
+                  d="M10 5a2 2 0 1 1 4 0v7a5 5 0 1 1-4 0V5z"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                />
+                <circle cx="12" cy="17" r="2" fill="currentColor" />
+              </svg>
+            }
           />
         </div>
         <div className="col-span-12 md:col-span-3">
@@ -236,7 +261,16 @@ export default function Today() {
             value={latestWind != null ? Math.round(latestWind) : "—"}
             unit="m/s"
             subtitle="Closest recent hour"
-            icon={WindIcon}
+            icon={
+              <svg viewBox="0 0 24 24" fill="none">
+                <path
+                  d="M3 8h11a3 3 0 1 0-3-3M3 12h14a3 3 0 1 1-3 3M3 16h7"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                />
+              </svg>
+            }
           />
         </div>
         <div className="col-span-12 md:col-span-3">
@@ -246,22 +280,29 @@ export default function Today() {
             subtitle={
               rainRisk === "High" ? "Carry an umbrella" : "Monitor sky cover"
             }
-            icon={DropIcon}
+            icon={
+              <svg viewBox="0 0 24 24" fill="none">
+                <path
+                  d="M12 3c4 5 6 8 6 11a 6 6 0 1 1-12 0c0-3 2-6 6-11z"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                />
+              </svg>
+            }
           />
         </div>
       </div>
 
+      {/* Charts */}
       <div className="col-span-12 grid md:grid-cols-2 gap-6">
         <ChartCard
-          title="Hourly Temperature"
-          rows={temp}
-          icon={ThermIcon}
+          title={`Hourly Temperature (°${units})`}
+          rows={tempRowsForChart}
           tone="amber"
         />
         <ChartCard
-          title="Hourly Precipitation"
+          title="Hourly Precipitation (mm/hr)"
           rows={precip}
-          icon={DropIcon}
           tone="sky"
         />
       </div>
@@ -269,6 +310,12 @@ export default function Today() {
       <div className="col-span-12">
         <TipsCard text={tip} />
       </div>
+
+      {loading && (
+        <div className="col-span-12 text-sm text-slate-600">
+          Loading NASA POWER…
+        </div>
+      )}
     </div>
   );
 }
