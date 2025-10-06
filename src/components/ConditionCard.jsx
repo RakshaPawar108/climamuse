@@ -1,9 +1,9 @@
 import { Card, CardHeader } from "./ui/Card.jsx";
 
-export default function ConditionCard({ title, value, unit, subtitle }) {
+export default function ConditionCard({ title, value, unit, subtitle, icon }) {
   return (
     <Card className="flex flex-col gap-2">
-      <CardHeader title={title} />
+      <CardHeader title={title} icon={icon} />
       <div className="flex items-baseline gap-2">
         <div className="text-4xl font-bold">{value ?? "—"}</div>
         {unit && <div className="text-text-muted">{unit}</div>}

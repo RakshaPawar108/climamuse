@@ -1,75 +1,111 @@
 @import "tailwindcss";
 
 @theme {
-  /* Brand */
-  --color-primary-50: #eef2ff;
-  --color-primary-100: #e0e7ff;
-  --color-primary-200: #c7d2fe;
-  --color-primary-300: #a5b4fc;
-  --color-primary-400: #818cf8;
-  --color-primary-500: #6366f1;
-  --color-primary-600: #4f46e5;
-  --color-primary-700: #4338ca;
-  --color-primary-800: #3730a3;
-  --color-primary-900: #312e81;
+  /* Primary blues/purples */
+  --color-primary-50: oklch(0.97 0.02 250);
+  --color-primary-100: oklch(0.94 0.03 250);
+  --color-primary-200: oklch(0.87 0.06 250);
+  --color-primary-500: oklch(0.65 0.12 250);
+  --color-primary-600: oklch(0.6 0.12 250);
+  --color-primary-700: oklch(0.53 0.12 250);
 
-  /* Accent / secondary */
-  --color-secondary-100: #ccfbf1;
-  --color-secondary-200: #99f6e4;
-  --color-secondary-300: #5eead4;
-  --color-secondary-400: #2dd4bf;
-  --color-secondary-500: #14b8a6;
-  --color-secondary-600: #0d9488;
-  --color-secondary-700: #0f766e;
+  /* Accent yellows / ambers */
+  --color-amber-50: oklch(0.98 0.05 85);
+  --color-amber-100: oklch(0.96 0.07 85);
+  --color-amber-200: oklch(0.92 0.1 85);
+  --color-amber-300: oklch(0.85 0.14 85);
+  --color-amber-400: oklch(0.78 0.16 85);
+  --color-amber-600: oklch(0.7 0.15 85);
 
-  /* Surfaces & text */
-  --color-bgcanvas: #f7fafc; /* app background */
-  --color-bgcard: #ffffff; /* cards */
-  --color-border: #e5e7eb;
+  /* Sky blues for rain visuals */
+  --color-sky-50: oklch(0.98 0.04 230);
+  --color-sky-100: oklch(0.95 0.05 230);
+  --color-sky-200: oklch(0.9 0.07 230);
+  --color-sky-300: oklch(0.83 0.1 230);
+  --color-sky-500: oklch(0.72 0.13 230);
+  --color-sky-600: oklch(0.66 0.13 230);
 
-  --color-text-primary: #0b1320;
-  --color-text-secondary: #334155;
-  --color-text-muted: #64748b;
+  /* Backgrounds */
+  --color-bgcanvas: oklch(0.98 0.02 230);
+  --color-bgcard: oklch(0.99 0.01 230);
 
-  /* Status (optional) */
-  --color-success-500: #22c55e;
-  --color-warning-500: #f59e0b;
-  --color-danger-500: #ef4444;
-
-  /* Chart palette (use as needed) */
-  --color-chart-1: var(--color-primary-600);
-  --color-chart-2: #06b6d4;
-  --color-chart-3: #10b981;
-
-  /* map colors */
-  /* --color-primary: var(--cm-color-primary-600);
-  --color-primary700: var(--cm-color-primary-700);
-  --color-secondary: var(--cm-color-secondary-500);
-
-  --color-bgcanvas: var(--cm-bg-canvas);
-  --color-bgcard: var(--cm-bg-card);
-
-  --color-text-primary: var(--cm-text-primary);
-  --color-text-secondary: var(--cm-text-secondary);
-  --color-text-muted: var(--cm-text-muted); */
-
-  /* radii (so `rounded-pill` works) */
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
-  --radius-pill: 999px;
-
-  /* shadows (for `shadow-sm`/`shadow-md`) */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  /* Text tones */
+  --color-text-primary: oklch(0.18 0.02 250);
+  --color-text-secondary: oklch(0.35 0.02 250);
+  --color-text-muted: oklch(0.55 0.02 250);
 }
 
-:root.dark {
-  --color-bgcanvas: #0b1320;
-  --color-bgcard: #0f172a;
-  --color-border: #1f2937;
+/* ------------------------------------------------------------
+   🌈  GLOBAL STYLES
+------------------------------------------------------------ */
+html,
+body,
+#root {
+  height: 100%;
+  color: var(--color-text-primary);
+  background-color: var(--color-bgcanvas);
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+}
 
-  --color-text-primary: #e5e7eb;
-  --color-text-secondary: #cbd5e1;
-  --color-text-muted: #94a3b8;
+/* soft gradient canvas background */
+body {
+  background: linear-gradient(
+    180deg,
+    color(display-p3 0.93 0.97 1 / 1) 0%,
+    color(display-p3 1 0.98 0.92 / 1) 100%
+  );
+}
+
+/* scroll behavior */
+html {
+  scroll-behavior: smooth;
+}
+
+/* ------------------------------------------------------------
+   ☁️  CARD TINT HELPERS (use in components)
+------------------------------------------------------------ */
+.card-tint-sky {
+  @apply bg-sky-50 border border-sky-200;
+}
+
+.card-tint-amber {
+  @apply bg-amber-50 border border-amber-200;
+}
+
+/* Subtle shadow & rounding helpers (optional) */
+.glass-card {
+  @apply bg-white/80 backdrop-blur rounded-2xl shadow-sm;
+}
+
+/* ------------------------------------------------------------
+   🌞  TYPOGRAPHY & UTILITIES
+------------------------------------------------------------ */
+h1,
+h2,
+h3,
+h4,
+h5 {
+  @apply font-semibold text-slate-800;
+}
+
+p {
+  @apply text-slate-700;
+}
+
+/* Make tables, inputs, etc., feel soft */
+input,
+select,
+textarea {
+  @apply border border-slate-300 rounded-md px-3 py-2 outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500;
+}
+
+/* Links */
+a {
+  @apply text-primary-600 hover:text-primary-700 underline-offset-2;
+}
+
+/* Cards hover feel */
+.hover-card {
+  @apply transition-transform hover:-translate-y-1 hover:shadow-md;
 }

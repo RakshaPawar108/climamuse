@@ -8,7 +8,7 @@ export default function TopBar() {
       : `${link} text-text-secondary hover:bg-white/70`;
   return (
     <header className="w-full h-16 bg-bgcanvas sticky top-0 z-10 flex items-center justify-between px-6">
-      <div className="font-bold">ClimaMuse</div>
+      <div className="font-bold text-primary-600">ClimaMuse</div>
       <nav className="flex gap-2">
         <NavLink to="/" className={active}>
           Today
@@ -22,7 +22,7 @@ export default function TopBar() {
       </nav>
       <div className="flex items-center gap-3 text-text-secondary">
         <span className="hidden md:inline text-sm">NASA • GES DISC</span>
-        <div className="h-8 w-8 rounded-full bg-slate-300" />
+        <div className="h-8 w-8 rounded-full bg-primary-600/10 ring-1 ring-primary-600/30" />
       </div>
     </header>
   );
